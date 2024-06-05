@@ -1,6 +1,7 @@
 from django.shortcuts import render
-
-from blog.forms import EmailPostForm
+from django.core.mail import send_mail
+from django.views.decorators.http import require_POST
+from blog.forms import EmailPostForm, CommentForm
 from .models import Post
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -44,23 +45,69 @@ def post_detail(request, year, month, day, post):
         publish__day=day,
         status=Post.Status.PUBLISHED,
     )
-    context = {"post": post}
+    comments = post.comments.filter(active=True)
+    """ You can also do Comment.object.filter(active=True) to return all the comments for a post
+    """
+    form = CommentForm()
+    context = {
+        "post": post,
+        "form": form,
+        "comments": comments,
+    }
     return render(request, "blog/post/detail.html", context)
 
 
 def post_share(request, post_id):
     post = get_object_or_404(Post, id=post_id, status=Post.Status.PUBLISHED)
 
+    sent = False
+
     if request.method == "POST":
         form = EmailPostForm(request.POST)
         if form.is_valid():
             cd = form.cleaned_data
+            post_url = request.build_absolute_uri(post.get_absolute_url())
+            subject = (
+                f"{cd['name']} ({cd['email']}) " f"recommends you read {post.title}"
+            )
+            message = (
+                f"Read {post.title} at {post_url}\n\n"
+                f"{cd['name']}'s comments: {cd['comments']}"
+            )
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=None,
+                recipient_list=[cd["to"]],
+            )
+            sent = True
     else:
         form = EmailPostForm()
 
     context = {
         "post": post,
         "form": form,
+        "sent": sent,
     }
 
     return render(request, "blog/post/share.html", context)
+
+
+@require_POST
+def post_comment(request, post_id):
+    post = get_object_or_404(Post, id=post_id, status=Post.Status.PUBLISHED)
+    comment = None
+
+    form = CommentForm(data=request.POST)
+    if form.is_valid():
+        comment = form.save(commit=False)
+        comment.post = post
+        comment.save()
+
+    context = {
+        "comment": comment,
+        "form": form,
+        "post": post,
+    }
+
+    return render(request, "blog/post/comment.html", context)
