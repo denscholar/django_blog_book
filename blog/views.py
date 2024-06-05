@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.core.mail import send_mail
-
-from blog.forms import EmailPostForm
+from django.views.decorators.http import require_POST
+from blog.forms import EmailPostForm, CommentForm
 from .models import Post
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -45,7 +45,15 @@ def post_detail(request, year, month, day, post):
         publish__day=day,
         status=Post.Status.PUBLISHED,
     )
-    context = {"post": post}
+    comments = post.comments.filter(active=True)
+    """ You can also do Comment.object.filter(active=True) to return all the comments for a post
+    """
+    form = CommentForm()
+    context = {
+        "post": post,
+        "form": form,
+        "comments": comments,
+    }
     return render(request, "blog/post/detail.html", context)
 
 
@@ -83,3 +91,23 @@ def post_share(request, post_id):
     }
 
     return render(request, "blog/post/share.html", context)
+
+
+@require_POST
+def post_comment(request, post_id):
+    post = get_object_or_404(Post, id=post_id, status=Post.Status.PUBLISHED)
+    comment = None
+
+    form = CommentForm(data=request.POST)
+    if form.is_valid():
+        comment = form.save(commit=False)
+        comment.post = post
+        comment.save()
+
+    context = {
+        "comment": comment,
+        "form": form,
+        "post": post,
+    }
+
+    return render(request, "blog/post/comment.html", context)
