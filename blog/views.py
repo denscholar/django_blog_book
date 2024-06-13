@@ -7,33 +7,40 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.views.generic import ListView
+from taggit.models import Tag
 
 
-# def post_list(request, *args, **kwargs):
-#     post_list = Post.published.all()
-#     paginator = Paginator(post_list, 3)
-#     page_number = request.GET.get('page', 1)
+def post_list(request, tag_slug=None):
+    post_list = Post.published.all()
+    tag_slug = None
+    if tag_slug:
+        tag = get_object_or_404(Tag, slug=tag_slug)
+        post_list = post_list.filter(tags__in=[tag])
 
-#     try:
-#         posts = paginator.page(page_number)
-#     except EmptyPage:
-#         posts = paginator.page(paginator.num_pages)
-#     except PageNotAnInteger:
-#         posts = paginator.page(1)
+    paginator = Paginator(post_list, 3)
+    page_number = request.GET.get("page", 1)
 
-#     context = {
-#         "posts": posts,
-#     }
-#     return render(request, "blog/post/list.html", context)
+    try:
+        posts = paginator.page(page_number)
+    except EmptyPage:
+        posts = paginator.page(paginator.num_pages)
+    except PageNotAnInteger:
+        posts = paginator.page(1)
+
+    context = {
+        "posts": posts,
+        # "tag": tag,
+    }
+    return render(request, "blog/post/list.html", context)
 
 
-class PostListView(ListView):
-    """Alternative post list view"""
+# class PostListView(ListView):
+#     """Alternative post list view"""
 
-    queryset = Post.published.all()
-    context_object_name = "posts"
-    paginate_by = 3
-    template_name = "blog/post/list.html"
+#     queryset = Post.published.all()
+#     context_object_name = "posts"
+#     paginate_by = 3
+#     template_name = "blog/post/list.html"
 
 
 def post_detail(request, year, month, day, post):
